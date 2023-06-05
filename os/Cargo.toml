@@ -6,6 +6,8 @@ authors = ["thexia <xiayu1187@gmail.com>"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+log = "0.4"
+sbi-rt = {version = "0.0.2", features = ["legacy"]}
 
 [profile.release]
 debug = true
