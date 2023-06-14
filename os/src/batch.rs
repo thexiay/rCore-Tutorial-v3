@@ -3,8 +3,8 @@ use crate::trap::TrapContext;
 use crate::sync::UPSafeCell;
 use core::arch::asm;
 
-const USER_STACK_SIZE: usize = 4096 * 2;
-const KERNEL_STACK_SIZE: usize = 4096 * 2;
+const USER_STACK_SIZE: usize = 4096;
+const KERNEL_STACK_SIZE: usize = 4096;
 const MAX_APP_NUM: usize = 16;
 const APP_BASE_ADDRESS: usize = 0x80400000;
 const APP_SIZE_LIMIT: usize = 0x20000;
@@ -37,6 +37,14 @@ impl UserStack {
     fn get_sp(&self) -> usize {
         self.data.as_ptr() as usize + USER_STACK_SIZE
     }
+}
+
+pub fn app_stack_range() -> (usize, usize) {
+    (USER_STACK.get_sp() - USER_STACK_SIZE, USER_STACK.get_sp())
+}
+
+pub fn app_address_range() -> (usize, usize) {
+    (APP_BASE_ADDRESS, APP_BASE_ADDRESS + APP_SIZE_LIMIT)
 }
 
 struct AppManager {

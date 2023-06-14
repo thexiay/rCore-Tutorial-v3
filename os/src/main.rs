@@ -10,6 +10,7 @@ mod syscall;
 mod trap;
 mod batch;
 mod sync;
+mod loggings;
 
 use core::arch::global_asm;
 
@@ -33,6 +34,7 @@ fn clear_bss() {
 pub fn rust_main() -> ! {
     clear_bss();
     println!("[kernel] Hello, world!");
+    loggings::init();
     trap::init();
     batch::init();
     batch::run_next_app();

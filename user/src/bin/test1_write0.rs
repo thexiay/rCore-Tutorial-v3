@@ -22,7 +22,7 @@ unsafe fn r_sp() -> usize {
 
 unsafe fn stack_range() -> (usize, usize) {
     let sp = r_sp();
-    let top = (sp + STACK_SIZE - 1) & (!(STACK_SIZE - 1));
+    let top = (sp + STACK_SIZE - 1) & (!(STACK_SIZE - 1));  // sp往上+STACK_SIZE然后按页数对齐
     (top - STACK_SIZE, top)
 }
 
@@ -36,6 +36,7 @@ pub fn main() -> i32 {
         -1
     );
     let (bottom, top) = unsafe { stack_range() };
+    println!("bottom is{:#x}, top is {:#x}", bottom, top);
     assert_eq!(
         write(STDOUT, unsafe {
             slice::from_raw_parts((top - 5) as *const _, 10)
