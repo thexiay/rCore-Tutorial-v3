@@ -251,3 +251,7 @@ pub fn dup(fd: usize) -> isize {
 pub fn pipe(pipe_fd: &mut [usize]) -> isize {
     sys_pipe(pipe_fd)
 }
+
+pub fn info_task() -> isize {
+    sys_info_task()
+}

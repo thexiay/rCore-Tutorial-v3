@@ -30,6 +30,7 @@ OBJCOPY := rust-objcopy --binary-architecture=riscv64
 DISASM ?= -x
 
 TEST ?= 0
+APP ?= 0
 
 build: env switch-check $(KERNEL_BIN)
 
@@ -50,7 +51,7 @@ $(KERNEL_BIN): kernel
 	@$(OBJCOPY) $(KERNEL_ELF) --strip-all -O binary $@
 
 kernel:
-	@cd ../user && make build TEST=$(TEST)
+	@cd ../user && make build TEST=$(TEST) APP=$(APP)
 	@echo Platform: $(BOARD)
 	@cp src/linker-$(BOARD).ld src/linker.ld
 	@cargo build --release

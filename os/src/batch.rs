@@ -39,14 +39,6 @@ impl UserStack {
     }
 }
 
-pub fn app_stack_range() -> (usize, usize) {
-    (USER_STACK.get_sp() - USER_STACK_SIZE, USER_STACK.get_sp())
-}
-
-pub fn app_address_range() -> (usize, usize) {
-    (APP_BASE_ADDRESS, APP_BASE_ADDRESS + APP_SIZE_LIMIT)
-}
-
 struct AppManager {
     num_app: usize,
     current_app: usize,
@@ -134,4 +126,17 @@ pub fn run_next_app() -> ! {
         ) as *const _ as usize);
     }
     panic!("Unreachable in batch::run_current_app!");
+}
+
+pub fn app_stack_range() -> (usize, usize) {
+    (USER_STACK.get_sp() - USER_STACK_SIZE, USER_STACK.get_sp())
+}
+
+pub fn app_address_range() -> (usize, usize) {
+    (APP_BASE_ADDRESS, APP_BASE_ADDRESS + APP_SIZE_LIMIT)
+}
+
+pub fn app_info() -> usize {
+    let app_manager = APP_MANAGER.exclusive_access();
+    app_manager.current_app
 }

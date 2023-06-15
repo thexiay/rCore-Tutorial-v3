@@ -8,15 +8,18 @@ OBJCOPY := rust-objcopy --binary-architecture=riscv64
 PY := python3
 
 TEST ?= 0
-ifeq ($(TEST), 0)
-	APPS :=  $(filter-out $(wildcard $(APP_DIR)/test*.rs), $(wildcard $(APP_DIR)/*.rs))
-else
-	APPS :=  $(wildcard $(APP_DIR)/test$(TEST)*.rs)
+APP ?= 0
+ifneq ($(TEST), 0)
+	APPS := $(wildcard $(APP_DIR)/test$(TEST)*.rs)
+else ifneq ($(APP), 0)
+	APPS := $(wildcard $(APP_DIR)/$(APP).rs)
+else 
+	APPS := $(wildcard $(APP_DIR)/*.rs)
 endif
 ELFS := $(patsubst $(APP_DIR)/%.rs, $(TARGET_DIR)/%, $(APPS))
 
 binary:
- #	@echo $(ELFS)
+	@echo "elfs is" $(ELFS)
 	@cargo build --release
 	@$(foreach elf, $(ELFS), \
 		$(OBJCOPY) $(elf) --strip-all -O binary $(patsubst $(TARGET_DIR)/%, $(TARGET_DIR)/%.bin, $(elf)); \
