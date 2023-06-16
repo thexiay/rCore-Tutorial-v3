@@ -11,6 +11,7 @@ mod trap;
 mod batch;
 mod sync;
 mod loggings;
+mod stack_trace;
 
 use core::arch::global_asm;
 
