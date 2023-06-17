@@ -34,18 +34,27 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
         }
         Trap::Exception(Exception::StoreFault) |
         Trap::Exception(Exception::StorePageFault) => {
+            exception_back_trace(cx.x[8]);
             println!("[kernel] PageFault in application, core dumped.");
             run_next_app();
         }
         Trap::Exception(Exception::IllegalInstruction) => {
+            exception_back_trace(cx.x[8]);
             println!("[kernel] IllegalInstruction in application, core dumped.");
             run_next_app();
         }
         _ => {
+            exception_back_trace(cx.x[8]);
             panic!("Unsupported trap {:?}, stval = {:#x}!", scause.cause(), stval);
         }
     }
     cx
+}
+
+pub fn exception_back_trace(fp: usize) {
+    // 这时候用户栈和内核栈互换了，所以应该去用户栈找fp地址，然后打印出来，所以需要知道此时的内存布局
+    let user_fp: *const usize = fp as *const usize;
+    unsafe { println!("Exception orror, fp = {:#x}", *user_fp); }
 }
 
 pub use context::TrapContext;
