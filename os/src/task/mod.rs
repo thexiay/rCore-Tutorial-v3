@@ -22,6 +22,7 @@ use crate::sync::UPSafeCell;
 use lazy_static::*;
 use switch::__switch;
 use task::{TaskControlBlock, TaskStatus};
+use log::{info};
 
 pub use context::TaskContext;
 
@@ -93,7 +94,7 @@ impl TaskManager {
     }
 
     /// Change the status of current `Running` task into `Ready`.
-    fn mark_current_suspended(&self) {
+    fn mark_current_suspended(&self) {    
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
         inner.tasks[current].task_status = TaskStatus::Ready;
@@ -123,6 +124,7 @@ impl TaskManager {
         if let Some(next) = self.find_next_task() {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
+            if current != next { info!("switch from task {} to task {}.", current, next) }
             inner.tasks[next].task_status = TaskStatus::Running;
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
