@@ -20,7 +20,7 @@ use crate::loader::{get_num_app, init_app_cx};
 use crate::sbi::shutdown;
 use crate::sync::UPSafeCell;
 use lazy_static::*;
-use switch::__switch;
+use switch::{__switch_with_metric, get_switch_time_count};
 use task::{TaskControlBlock, TaskStatus};
 use metric::TaskMetric;
 use log::{info};
@@ -92,7 +92,7 @@ impl TaskManager {
         let mut _unused = TaskContext::zero_init();
         // before this, we should drop local variables that must be dropped manually
         unsafe {
-            __switch(&mut _unused as *mut TaskContext, next_task_cx_ptr);
+            __switch_with_metric(&mut _unused as *mut TaskContext, next_task_cx_ptr);
         }
         panic!("unreachable in run_first_task!");
     }
@@ -140,11 +140,12 @@ impl TaskManager {
             drop(inner);
             // before this, we should drop local variables that must be dropped manually
             unsafe {
-                __switch(current_task_cx_ptr, next_task_cx_ptr);
+                __switch_with_metric(current_task_cx_ptr, next_task_cx_ptr);
             }
             // go back to user mode
         } else {
             println!("All applications completed!");
+            info!("task switch time: {} us", get_switch_time_count());
             shutdown(false);
         }
     }
