@@ -15,7 +15,14 @@
 mod context;
 
 use crate::syscall::syscall;
-use crate::task::{exit_current_and_run_next, suspend_current_and_run_next};
+use crate::task::{
+    exit_current_and_run_next, 
+    suspend_current_and_run_next,
+    mark_user_time_end,
+    mark_kernel_time_start,
+    mark_kernel_time_end,
+    mark_user_time_start
+};
 use crate::timer::set_next_trigger;
 use core::arch::global_asm;
 use riscv::register::{
@@ -46,6 +53,10 @@ pub fn enable_timer_interrupt() {
 #[no_mangle]
 /// handle an interrupt, exception, or system call from user space
 pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
+    // case1:从trapp_handler开始到结束表示当前task的kernel占用时间，从结束trap_handler到下一次trap_handler算当前task的user占用时间
+    // case2:从trapp_handler开始到run_next_task算当前task的kernel占用时间，从run_next_task的go to user mode到下一次trap_handler算当前task的user占用时间
+    mark_user_time_end();
+    mark_kernel_time_start();
     let scause = scause::read(); // get trap cause
     let stval = stval::read(); // get extra value
     match scause.cause() {
@@ -73,6 +84,8 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
             );
         }
     }
+    mark_kernel_time_end();
+    mark_user_time_start();
     cx
 }
 

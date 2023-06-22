@@ -11,7 +11,7 @@
 
 mod context;
 mod switch;
-
+mod metric;
 #[allow(clippy::module_inception)]
 mod task;
 
@@ -22,6 +22,7 @@ use crate::sync::UPSafeCell;
 use lazy_static::*;
 use switch::__switch;
 use task::{TaskControlBlock, TaskStatus};
+use metric::TaskMetric;
 use log::{info};
 
 pub use context::TaskContext;
@@ -57,6 +58,7 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
+            task_metric: TaskMetric{ user_cost_ms: 0, kernel_cost_ms: 0, tmp_time_marker: 0 },
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
             task.task_cx = TaskContext::goto_restore(init_app_cx(i));
@@ -84,6 +86,8 @@ impl TaskManager {
         let task0 = &mut inner.tasks[0];
         task0.task_status = TaskStatus::Running;
         let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
+        // first task run should mark first task user start time
+        inner.tasks[0].task_metric.mark_user_start();
         drop(inner);
         let mut _unused = TaskContext::zero_init();
         // before this, we should drop local variables that must be dropped manually
@@ -105,6 +109,7 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
         inner.tasks[current].task_status = TaskStatus::Exited;
+        info!("User Task {} Exit! It cost user time {}ms, kernel time {}ms.", current, inner.tasks[current].task_metric.user_cost_ms, inner.tasks[current].task_metric.kernel_cost_ms);
     }
 
     /// Find next task to run and return task id.
@@ -129,6 +134,9 @@ impl TaskManager {
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
+            // 进入user mode的两个入口，run_next_task和trap_handler结束，所以这里都需要标记结束
+            inner.tasks[current].task_metric.mark_kernel_end();
+            inner.tasks[next].task_metric.mark_user_start();
             drop(inner);
             // before this, we should drop local variables that must be dropped manually
             unsafe {
@@ -140,6 +148,31 @@ impl TaskManager {
             shutdown(false);
         }
     }
+
+    fn mark_user_time_start(&self) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].task_metric.mark_user_start();
+    }
+    
+    fn mark_user_time_end(&self) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].task_metric.mark_user_end();
+    }
+
+    fn mark_kernel_time_start(&self) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].task_metric.mark_kernel_start();
+    }
+
+    fn mark_kernel_time_end(&self) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].task_metric.mark_kernel_end();
+    }
+
 }
 
 /// run first task
@@ -172,4 +205,24 @@ pub fn suspend_current_and_run_next() {
 pub fn exit_current_and_run_next() {
     mark_current_exited();
     run_next_task();
+}
+
+/// metric task user start timer
+pub fn mark_user_time_start() {
+    TASK_MANAGER.mark_user_time_start();
+}
+
+/// metric task user end timer
+pub fn mark_user_time_end() {
+    TASK_MANAGER.mark_user_time_end();
+}
+
+/// metric task kernel start timer
+pub fn mark_kernel_time_start() {
+    TASK_MANAGER.mark_kernel_time_start();
+}
+
+/// metric task kernel end timer
+pub fn mark_kernel_time_end() {
+    TASK_MANAGER.mark_kernel_time_end();
 }
