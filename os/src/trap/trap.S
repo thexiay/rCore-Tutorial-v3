@@ -32,6 +32,7 @@ __alltraps:
     sd t1, 33*8(sp)
     # read user stack from sscratch and save it on the kernel stack
     csrr t2, sscratch
+    # todo:读取浮点寄存器，将浮点数记录写入到trap上下文中
     sd t2, 2*8(sp)
     # set input argument of trap_handler(cx: &mut TrapContext)
     mv a0, sp
@@ -54,6 +55,7 @@ __restore:
         LOAD_GP %n
         .set n, n+1
     .endr
+    # todo:读取浮点寄存器，将浮点数记录写入到trap上下文中
     # release TrapContext on kernel stack
     addi sp, sp, 34*8
     # now sp->kernel stack, sscratch->user stack
