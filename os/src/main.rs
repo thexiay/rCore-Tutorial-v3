@@ -64,6 +64,16 @@ pub fn rust_main() -> ! {
     loader::load_apps();
     trap::enable_timer_interrupt();
     timer::set_next_trigger();
+    
+    use riscv::register::sstatus;
+    unsafe { sstatus::set_sie() }; // 打开内核态中断
+    loop {
+        if trap::check_kernel_interrupt() {
+            println!("kernel interrupt returned.");
+            break;
+        }
+    }
+    unsafe { sstatus::clear_sie() }; // 关闭内核态中断
     task::run_first_task();
     panic!("Unreachable in rust_main!");
 }
