@@ -3,6 +3,8 @@ use super::{VirtPageNum, VirtAddr, PhysPageNum, PhysAddr};
 use super::{FrameTracker, frame_alloc};
 use super::{VPNRange, StepByOne};
 use alloc::collections::BTreeMap;
+use alloc::format;
+use alloc::string::String;
 use alloc::vec::Vec;
 use riscv::register::satp;
 use alloc::sync::Arc;
@@ -60,12 +62,38 @@ impl MemorySet {
             permission,
         ), None);
     }
+    pub fn delete_framed_area(&mut self, start_va: VirtAddr, end_va: VirtAddr) -> Result<(), String> {
+        self.pop(start_va.floor(), end_va.ceil())
+    }
+    pub fn try_insert_framed_area(&mut self, start_va: VirtAddr, end_va: VirtAddr, permission: MapPermission) -> Result<(), String> {
+        // 检查内存是否够，检查内存范围是否符合
+        for area in self.areas.iter() {
+            if !(start_va >= area.vpn_range.get_end().into() || end_va <= area.vpn_range.get_start().into()) {
+                return Err(
+                    format!("[Kernel] vpn range for new area va({}, {}) has alreay been allocated vpn({}, {})",
+                            start_va.0, end_va.0, area.vpn_range.get_start().0, area.vpn_range.get_end().0))
+            }
+        }   
+        // TODO:先暂时不考虑分配不出内存的情况
+        self.insert_framed_area(start_va, end_va, permission);
+        Ok(())
+    }
     fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
         map_area.map(&mut self.page_table);
         if let Some(data) = data {
             map_area.copy_data(&mut self.page_table, data);
         }
         self.areas.push(map_area);
+    }
+    fn pop(&mut self, start_vpn: VirtPageNum, end_vpn: VirtPageNum) -> Result<(), String> {
+        for (i, area) in self.areas.iter_mut().enumerate() {
+            if area.vpn_range.get_start() == start_vpn && area.vpn_range.get_end() == end_vpn {
+                area.unmap(&mut self.page_table);
+                self.areas.remove(i);
+                return Ok(())
+            }
+        }
+        Err(format!("[Kernel]Not Found should delete framed area vpn in ({}, {})", start_vpn.0, end_vpn.0))
     }
     /// Mention that trampoline is not collected by areas.
     fn map_trampoline(&mut self) {
@@ -286,6 +314,7 @@ bitflags! {
         const W = 1 << 2;
         const X = 1 << 3;
         const U = 1 << 4;
+        const RWXU = Self::R.bits | Self::W.bits | Self::X.bits | Self::U.bits;
     }
 }
 

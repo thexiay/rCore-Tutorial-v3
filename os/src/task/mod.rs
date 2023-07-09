@@ -3,12 +3,17 @@ mod switch;
 mod task;
 
 use crate::loader::{get_num_app, get_app_data};
+use crate::mm::{MemorySet, VirtAddr, MapPermission};
 use crate::trap::TrapContext;
 use crate::sync::UPSafeCell;
+use crate::config::PAGE_SIZE;
+use alloc::format;
+use alloc::string::String;
 use lazy_static::*;
 use switch::__switch;
 use task::{TaskControlBlock, TaskStatus};
 use alloc::vec::Vec;
+
 
 pub use context::TaskContext;
 
@@ -115,6 +120,47 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    fn mmap(&self, start: usize, _len: usize, prot: usize) -> Result<(), String> {
+        // check permission, it must cant only contains Rw
+        if  ((prot as u8) & !0x7 != 0) || ((prot as u8) & 0x7 == 0)  {
+            return Err(format!("[kernel] invalid prot {}.", prot))
+        }
+
+        // check align virutal address
+        let start_va = VirtAddr::from(start);
+        if !start_va.aligned() {
+            return Err(format!("[kernel] invalid start {}, it must align with page size {}.", start, PAGE_SIZE))
+        }
+
+        let mut inner = self.inner.exclusive_access();
+        let current_task = inner.current_task;
+        let mem_set = inner.tasks[current_task].get_user_mem_set();
+        
+        
+        let page = (_len - 1 + PAGE_SIZE) / PAGE_SIZE;
+        let end_va = VirtAddr::from(start + PAGE_SIZE * page);
+        let permission = (prot << 1) as u8;
+        mem_set.try_insert_framed_area(
+            start_va,
+            end_va,
+            MapPermission::from_bits(permission).unwrap() | MapPermission::U)  // user must can use
+    }
+
+    fn munmap(&self, start: usize, _len: usize) -> Result<(), String> {
+        // check align virutal address
+        let start_va = VirtAddr::from(start);
+        if !start_va.aligned() {
+            return Err(format!("[kernel] invalid start {}, it must align with page size {}.", start, PAGE_SIZE))
+        }
+
+        let mut inner = self.inner.exclusive_access();
+        let current_task = inner.current_task;
+        let mem_set = inner.tasks[current_task].get_user_mem_set();
+    
+        let end_va = VirtAddr::from(start + _len);
+        mem_set.delete_framed_area(start_va, end_va)
+    }
 }
 
 pub fn run_first_task() {
@@ -149,4 +195,12 @@ pub fn current_user_token() -> usize {
 
 pub fn current_trap_cx() -> &'static mut TrapContext {
     TASK_MANAGER.get_current_trap_cx()
+}
+
+pub fn mmap(start: usize, _len: usize, prot: usize) -> Result<(), String> {
+    TASK_MANAGER.mmap(start, _len, prot)
+}
+
+pub fn munmap(start: usize, _len: usize) -> Result<(), String> {
+    TASK_MANAGER.munmap(start, _len)
 }
