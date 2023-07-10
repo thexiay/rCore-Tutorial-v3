@@ -7,7 +7,7 @@ use crate::{
     mm::{translated_refmut, translated_str},
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next,
-        suspend_current_and_run_next, TaskStatus,
+        suspend_current_and_run_next, TaskStatus, TaskControlBlock,
     },
 };
 
@@ -167,11 +167,36 @@ pub fn sys_sbrk(size: i32) -> isize {
 /// YOUR JOB: Implement spawn.
 /// HINT: fork + exec =/= spawn
 pub fn sys_spawn(_path: *const u8) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+    debug!("kernel:pid[{}] sys_spawn init.", current_task().unwrap().pid.0);
+
+    
+    // 1.加载新应用的elf data，先在内核态的堆上分配
+    // 2.加载elf到为新进程准备环境（内核栈，虚拟内存空间，父子进程的初始化）
+    // 4.准备返回，当然该函数返回还是父进程的执行，但是一旦返回后下一次cpu切片的抢占就可能是子进程的代码了
+    let token = current_user_token();
+    let path = translated_str(token, _path);
+    if let Some(elf_data) = get_app_data_by_name(path.as_str()) {
+        let new_task_control_block = TaskControlBlock::new(elf_data);
+        let new_task_pid = new_task_control_block.getpid();
+        let new_task = Arc::new(new_task_control_block);
+        let mut new_task_inner = new_task.inner_exclusive_access();
+        
+        // parent and son process relation init
+        let parent = current_task().unwrap();
+        let mut parent_inner = parent.inner_exclusive_access();
+        new_task_inner.parent = Some(Arc::downgrade(&parent));
+        parent_inner.children.push(new_task.clone());
+        drop(parent_inner);
+        drop(new_task_inner);
+        
+        // new_task_inner.get_trap_cx().x[10] = 0;  // 这一行干啥的
+        debug!("kernel:pid[{}] sys_spawn exec by pid[{}].", new_task.getpid(), parent.getpid());
+        new_task.exec(elf_data);
+        add_task(new_task);
+        new_task_pid as isize
+    } else {
+        -1
+    }
 }
 
 // YOUR JOB: Set task priority.
